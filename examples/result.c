@@ -1,27 +1,38 @@
-#include "../maybe.h"
+#include "../result.h"
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 
+// 1. Define the Result type for this file's functions
+RESULT_TYPE(File, int);
 
-#define FILE_ERRORS(ErrDef, Name) \
-    ErrDef(Name, NOT_FOUND, "File not found") \
-    ErrDef(Name, PERMISSION_DENIED, "Permission denied to access the file")
+// 2. Define error codes for the 'File' domain
+typedef enum {
+    FILE_ERR_NOT_FOUND,
+    FILE_ERR_PERMISSION_DENIED,
+    FILE_ERR_IO,
+} FileErrorCode;
 
-RESULT_TYPE(File, int, FILE_ERRORS);
+// 3. Define the ErrorDomain object for 'File' errors
+DEFINE_ERROR_DOMAIN(FILE, 1,
+    ERROR(FILE_ERR_NOT_FOUND, ENOENT, "No such file or directory"),
+    ERROR(FILE_ERR_PERMISSION_DENIED, EACCES, "Permission denied"),
+    ERROR(FILE_ERR_IO, EIO, "I/O Error")
+);
+
 
 Result(File) open_file(char *filename)
 {
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
         if (errno == ENOENT)
-            return Error(File, NOT_FOUND);
+            return Fail(File, FILE_DOMAIN, FILE_ERR_NOT_FOUND);
         else if (errno == EACCES)
-            return Error(File, PERMISSION_DENIED);
+            return Fail(File, FILE_DOMAIN, FILE_ERR_PERMISSION_DENIED);
         else
-            return Error(File, UNKNOWN_ERROR);
+            return Fail(File, FILE_DOMAIN, FILE_ERR_IO);
     }
     return Ok(File, fd);
 }
@@ -46,13 +57,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    Result(File) file = open_file(argv[1]);
-    if (is_error(file)) {
-        fprintf(stderr, "Error opening file '%s': %s\n", argv[1], error_msg(File, file));
+    Result(File) file_res = open_file(argv[1]);
+    if (is_error(file_res)) {
+        fprintf(stderr, "%s Error: %s\n", error_domain(file_res), error_msg(file_res));
         return 1;
     }
 
-    int fd = unwrap_ok(file);
+    int fd = unwrap_ok(file_res);
     readfile(fd);
     close(fd);
 
