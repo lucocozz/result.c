@@ -79,21 +79,21 @@ typedef enum {
 
 static inline void print_error_chain(const Error *error, CResultPrintOrder order, FILE *stream)
 {
+    fprintf(stream, "Error trace [\n");
     if (order == PRINT_ORDER_TOP_DOWN)
     {
-        fprintf(stream, "Error trace (Top-Down):\n");
         bool is_cause = false;
         while (error != NULL)
         {
             if (is_cause)
-                fprintf(stream, "Caused by: ");
+                fprintf(stream, "    Caused by: ");
             else
-                fprintf(stream, "Error: ");
+                fprintf(stream, "    Error: ");
 
             fprintf(stream, "[%s] '%s' (%d)\n",
                     error->domain_name, error->message, error->raw_code);
-            fprintf(stream, "    at %s() in %s:%d\n",
-                    error->func, error->file, error->line);
+            fprintf(stream, "        in %s:%d at %s() \n",
+                    error->file, error->line, error->func);
 
             error = error->cause;
             is_cause = true;
@@ -101,7 +101,6 @@ static inline void print_error_chain(const Error *error, CResultPrintOrder order
     }
     else
     {
-        fprintf(stream, "Error trace (Bottom-Up):\n");
         const Error *chain[RESULT_ERROR_POOL_SIZE];
         int depth = 0;
 
@@ -112,15 +111,19 @@ static inline void print_error_chain(const Error *error, CResultPrintOrder order
 
         for (int i = depth - 1; i >= 0; --i)
         {
+            if (i > 0)
+                fprintf(stream, "    Caused by: ");
+            else
+                fprintf(stream, "    Error: ");
+
             const Error *current = chain[i];
-            if (i < depth - 1)
-                fprintf(stream, "... which was wrapped by ...\n");
-            fprintf(stream, "Error: [%s] '%s' (%d)\n",
+            fprintf(stream, "[%s] '%s' (%d)\n",
                     current->domain_name, current->message, current->raw_code);
-            fprintf(stream, "    at %s() in %s:%d\n",
-                    current->func, current->file, current->line);
+            fprintf(stream, "        in %s:%d at %s()\n",
+                    current->file, current->line, current->func);
         }
     }
+    fprintf(stream, "]\n");
 }
 
 

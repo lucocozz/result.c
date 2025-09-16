@@ -39,16 +39,12 @@ Result(Int) start_application()
 
 int main()
 {
-    printf("Running realistic error chaining example...\n");
-
     Result(Int) final_res = start_application();
 
     if (is_error(final_res))
     {
-        fprintf(stderr, "\n--- Printing Top-Down (for log files) ---\n");
         print_error_chain(unwrap_error(final_res), PRINT_ORDER_TOP_DOWN, stderr);
-
-        fprintf(stderr, "\n--- Printing Bottom-Up (for interactive terminals) ---\n");
+        printf("\n---\n\n");
         print_error_chain(unwrap_error(final_res), PRINT_ORDER_BOTTOM_UP, stderr);
     } 
     else {
