@@ -14,6 +14,29 @@
 #define RESULT_ERROR_POOL_SIZE 256
 #endif
 
+// Uncomment the following line to enable color in `print_error_chain`
+// #define RESULT_FEATURE_COLOR
+
+#ifdef RESULT_FEATURE_COLOR
+    #define _RESULT_COLOR_RED     "\x1b[38;2;233;62;67m"   // rgba(233, 62, 67, 1)
+    #define _RESULT_COLOR_ORANGE  "\x1b[38;2;255;171;112m" // rgb(255, 171, 112)
+    #define _RESULT_COLOR_YELLOW  "\x1b[38;2;255;210;66m"  // rgb(255, 210, 66)
+    #define _RESULT_COLOR_GREEN   "\x1b[38;2;171;225;91m"  // rgb(171, 225, 91)
+    #define _RESULT_COLOR_BLUE    "\x1b[38;2;121;184;255m" // rgb(121, 184, 255)
+    #define _RESULT_COLOR_PURPLE  "\x1b[38;2;173;138;162m" // rgb(173, 138, 162)
+    #define _RESULT_COLOR_GREY    "\x1b[38;2;103;112;122m" // rgb(103, 112, 122)
+    #define _RESULT_COLOR_RESET   "\x1b[0m"
+#else
+    #define _RESULT_COLOR_RED     ""
+    #define _RESULT_COLOR_ORANGE  ""
+    #define _RESULT_COLOR_YELLOW  ""
+    #define _RESULT_COLOR_GREEN   ""
+    #define _RESULT_COLOR_BLUE    ""
+    #define _RESULT_COLOR_PURPLE  ""
+    #define _RESULT_COLOR_GREY    ""
+    #define _RESULT_COLOR_RESET   ""
+#endif
+
 // ============= Panic Handling =============
 
 #ifndef PANIC
@@ -82,60 +105,44 @@ static inline const Error *_result_from_errno(int errno_val, const ErrorDomain *
     return _result_error_new(NULL, domain, fallback_err_code, file, line, func);
 }
 
-typedef enum {
-    PRINT_ORDER_TOP_DOWN,
-    PRINT_ORDER_BOTTOM_UP
-} CResultPrintOrder;
-
-static inline void print_error_chain(const Error *error, CResultPrintOrder order, FILE *stream)
+static inline void print_error_chain(FILE *stream, const Error *error)
 {
-    fprintf(stream, "Error trace [\n");
-    if (order == PRINT_ORDER_TOP_DOWN)
-    {
-        bool is_cause = false;
-        while (error != NULL)
-        {
-            if (is_cause)
-                fprintf(stream, "    Caused by: ");
-            else
-                fprintf(stream, "    Error: ");
 
-            fprintf(stream, "[%s] '%s' (%d)\n",
-                    error->domain_name, error->message, error->raw_code);
-            fprintf(stream, "        in %s:%d at %s() \n",
-                    error->file, error->line, error->func);
+    fprintf(stream, "Traceback (root cause first):\n");
+    const Error *chain[RESULT_ERROR_POOL_SIZE];
+    int depth = 0;
 
-            error = error->cause;
-            is_cause = true;
-        }
+    while (error != NULL && depth < RESULT_ERROR_POOL_SIZE) {
+        chain[depth++] = error;
+        error = error->cause;
     }
-    else
+
+    for (int i = depth - 1; i >= 0; --i)
     {
-        const Error *chain[RESULT_ERROR_POOL_SIZE];
-        int depth = 0;
-
-        while (error != NULL && depth < RESULT_ERROR_POOL_SIZE) {
-            chain[depth++] = error;
-            error = error->cause;
-        }
-
-        for (int i = depth - 1; i >= 0; --i)
-        {
-            if (i > 0)
-                fprintf(stream, "    Caused by: ");
-            else
-                fprintf(stream, "    Error: ");
-
-            const Error *current = chain[i];
-            fprintf(stream, "[%s] '%s' (%d)\n",
-                    current->domain_name, current->message, current->raw_code);
-            fprintf(stream, "        in %s:%d at %s()\n",
-                    current->file, current->line, current->func);
-        }
+        const Error *current = chain[i];
+        fprintf(stream,
+            "  File \""
+            _RESULT_COLOR_BLUE "%s"
+            _RESULT_COLOR_RESET "\", line "
+            _RESULT_COLOR_YELLOW "%d"
+            _RESULT_COLOR_RESET ", in "
+            _RESULT_COLOR_GREEN "%s"
+            _RESULT_COLOR_RESET "()\n",
+            current->file, current->line, current->func
+        );
+        fprintf(stream,
+            "    ["
+            _RESULT_COLOR_ORANGE "%s"
+            _RESULT_COLOR_RESET "]: "
+            _RESULT_COLOR_RED "%s"
+            _RESULT_COLOR_RESET " ("
+            _RESULT_COLOR_PURPLE "%d"
+            _RESULT_COLOR_RESET ")"
+            _RESULT_COLOR_RESET "\n",
+            current->domain_name, current->message, current->raw_code
+        );
     }
-    fprintf(stream, "]\n");
 }
-
 
 #define ERROR(name, _code, _message) [name] = {.raw_code = _code, .type_code = name, .message = _message}
 
@@ -153,7 +160,7 @@ static inline void print_error_chain(const Error *error, CResultPrintOrder order
 
 #define RESULT_TYPE(Typename, Type) \
     typedef struct { \
-        bool _is_ok;     \
+        bool _is_ok; \
         union { \
             Type value; \
             const Error *error; \
@@ -226,7 +233,7 @@ static inline void print_error_chain(const Error *error, CResultPrintOrder order
 
 #define OPTIONAL_TYPE(Typename, Type) \
     typedef struct { \
-        bool _is_some;     \
+        bool _is_some; \
         Type value; \
     } Typename##Optional
 

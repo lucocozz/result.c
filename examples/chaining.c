@@ -1,3 +1,4 @@
+#define RESULT_FEATURE_COLOR
 #include "../result.h"
 #include <string.h>
 
@@ -42,15 +43,10 @@ int main()
     Result(Void) final_res = start_application();
 
     if (is_error(final_res))
-    {
-        print_error_chain(unwrap_error(final_res), PRINT_ORDER_TOP_DOWN, stderr);
-        printf("\n---\n\n");
-        print_error_chain(unwrap_error(final_res), PRINT_ORDER_BOTTOM_UP, stderr);
-    } 
+        print_error_chain(stderr, unwrap_error(final_res));
     else {
         printf("Test failed: should have caught an error.\n");
         return 1;
     }
-
     return 0;
 }
