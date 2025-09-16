@@ -50,6 +50,7 @@ typedef struct {
     int              domain_id;
     const char      *domain_name;
     const ErrorInfo *errors;
+    size_t           error_count;
 } ErrorDomain;
 
 static Error result_error_pool[RESULT_ERROR_POOL_SIZE];
@@ -70,6 +71,15 @@ static inline const Error *_result_error_new(const Error *cause, const ErrorDoma
     new_err->func = func;
 
     return new_err;
+}
+
+static inline const Error *_result_from_errno(int errno_val, const ErrorDomain *domain, int fallback_err_code, const char *file, int line, const char *func)
+{
+    for (size_t i = 0; i < domain->error_count; ++i)
+        if (domain->errors[i].raw_code == errno_val)
+            return _result_error_new(NULL, domain, domain->errors[i].type_code, file, line, func);
+
+    return _result_error_new(NULL, domain, fallback_err_code, file, line, func);
 }
 
 typedef enum {
@@ -134,7 +144,8 @@ static inline void print_error_chain(const Error *error, CResultPrintOrder order
     static const ErrorDomain name##_DOMAIN = { \
         .domain_id = id, \
         .domain_name = #name, \
-        .errors = name##_ERRORS \
+        .errors = name##_ERRORS, \
+        .error_count = sizeof(name##_ERRORS) / sizeof(ErrorInfo) \
     }
 
 
@@ -153,6 +164,9 @@ static inline void print_error_chain(const Error *error, CResultPrintOrder order
 
 #define Fail(ResultType, DomainObject, ErrCode) \
     ((ResultType##Result){ ._is_ok = false, .error = _result_error_new(NULL, &(DomainObject), ErrCode, __FILE__, __LINE__, __func__) })
+
+#define Fail_from_errno(ResultType, DomainObject, errno_val, FallbackErrCode) \
+    ((ResultType##Result){ ._is_ok = false, .error = _result_from_errno(errno_val, &(DomainObject), FallbackErrCode, __FILE__, __LINE__, __func__) })
 
 #define Propagate(Typename, ErrStructPtr) \
     ((Typename##Result){ ._is_ok = false, .error = _result_error_new(ErrStructPtr, &STANDARD_DOMAIN, STD_ERR_PROPAGATED, __FILE__, __LINE__, __func__) })
@@ -247,6 +261,12 @@ static inline void print_error_chain(const Error *error, CResultPrintOrder order
     } while(0)
 
 // ============= Pre-defined Types =============
+
+// Void type for Results that carry no value
+typedef struct { bool _unused; } result_void_t;
+RESULT_TYPE(Void, result_void_t);
+#define Ok_void() Ok(Void, (result_void_t){true})
+
 
 OPTIONAL_TYPE(Char, char);
 OPTIONAL_TYPE(UChar, unsigned char);

@@ -27,19 +27,19 @@ Result(String) load_config()
     return Ok(String, content);
 }
 
-Result(Int) start_application()
+Result(Void) start_application()
 {
     const char *config;
-    TRY_FAIL_CAST(Int, String, config, load_config(), APP_DOMAIN, APP_ERR_INIT_FAILED);
+    TRY_FAIL_CAST(Void, String, config, load_config(), APP_DOMAIN, APP_ERR_INIT_FAILED);
 
     printf("Application started successfully with config: %s\n", config);
 
-    return Ok(Int, 0);
+    return Ok_void();
 }
 
 int main()
 {
-    Result(Int) final_res = start_application();
+    Result(Void) final_res = start_application();
 
     if (is_error(final_res))
     {

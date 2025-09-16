@@ -26,14 +26,9 @@ DEFINE_ERROR_DOMAIN(FILE, 1,
 Result(File) open_file(char *filename)
 {
     int fd = open(filename, O_RDONLY);
-    if (fd == -1) {
-        if (errno == ENOENT)
-            return Fail(File, FILE_DOMAIN, FILE_ERR_NOT_FOUND);
-        else if (errno == EACCES)
-            return Fail(File, FILE_DOMAIN, FILE_ERR_PERMISSION_DENIED);
-        else
-            return Fail(File, FILE_DOMAIN, FILE_ERR_IO);
-    }
+    if (fd == -1)
+        return Fail_from_errno(File, FILE_DOMAIN, errno, FILE_ERR_IO);
+
     return Ok(File, fd);
 }
 
