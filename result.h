@@ -198,7 +198,7 @@ static inline void print_error_chain(FILE *stream, const Error *error)
 #define or_ok(result, default_val) \
     (is_ok(result) ? unwrap_ok(result) : (default_val))
 
-#define free_result(result_var, free_func) \
+#define FREE_RESULT(result_var, free_func) \
     do { \
         if (is_ok(result_var)) \
             free_func(unwrap_ok(result_var)); \
@@ -229,6 +229,14 @@ static inline void print_error_chain(FILE *stream, const Error *error)
 #define TRY_FAIL(Typename, target_var, res_expr, FailDomain, FailCode) \
     TRY_FAIL_CAST(Typename, Typename, target_var, res_expr, FailDomain, FailCode)
 
+#define MAP_RESULT(InputResultTypename, OutputResultTypename, result_expr, func_ptr) \
+    ({\
+        Result(InputResultTypename) _res_map_input = (result_expr); \
+        is_ok(_res_map_input) \
+            ? Ok(OutputResultTypename, func_ptr(unwrap_ok(_res_map_input))) \
+            : ((OutputResultTypename##Result){ ._is_ok = false, .error = unwrap_error(_res_map_input) }); \
+    })
+
 // ============= Optional Handling =============
 
 #define OPTIONAL_TYPE(Typename, Type) \
@@ -253,7 +261,7 @@ static inline void print_error_chain(FILE *stream, const Error *error)
 #define or_some(Varname, default_value) \
     (is_some(Varname) ? unwrap_some(Varname) : (default_value))
 
-#define free_optional(optional_var, free_func) \
+#define FREE_OPTIONAL(optional_var, free_func) \
     do { \
         if (is_some(optional_var)) \
             free_func(unwrap_some(optional_var)); \
@@ -334,7 +342,6 @@ enum StandardErrorCodes {
     STD_ERR_NOT_IMPLEMENTED,
     STD_ERR_PROPAGATED
 };
-
 DEFINE_ERROR_DOMAIN(STANDARD, 1,
     ERROR(STD_ERR_GENERIC, 0, "Generic error"),
     ERROR(STD_ERR_OUT_OF_MEMORY, ENOMEM, "Out of memory"),
@@ -359,7 +366,6 @@ enum IoErrorCodes {
     IO_ERR_INVALID_PATH,
     IO_ERR_DEVICE_NOT_READY
 };
-
 DEFINE_ERROR_DOMAIN(IO, 2,
     ERROR(IO_ERR_FILE_NOT_FOUND, ENOENT, "File not found"),
     ERROR(IO_ERR_PERMISSION_DENIED, EACCES, "Permission denied"),
@@ -383,7 +389,6 @@ enum NetworkErrorCodes {
     NET_ERR_SSL_ERROR,
     NET_ERR_AUTHENTICATION_FAILED
 };
-
 DEFINE_ERROR_DOMAIN(NETWORK, 3,
     ERROR(NET_ERR_CONNECTION_FAILED, ECONNREFUSED, "Connection failed"),
     ERROR(NET_ERR_CONNECTION_REFUSED, ECONNREFUSED, "Connection refused"),
@@ -406,7 +411,6 @@ enum ParseErrorCodes {
     PARSE_ERR_SYNTAX_ERROR,
     PARSE_ERR_ENCODING_ERROR
 };
-
 DEFINE_ERROR_DOMAIN(PARSE, 4,
     ERROR(PARSE_ERR_INVALID_FORMAT, EINVAL, "Invalid format"),
     ERROR(PARSE_ERR_UNEXPECTED_CHARACTER, EILSEQ, "Unexpected character"),
@@ -416,6 +420,19 @@ DEFINE_ERROR_DOMAIN(PARSE, 4,
     ERROR(PARSE_ERR_INVALID_ESCAPE, EILSEQ, "Invalid escape sequence"),
     ERROR(PARSE_ERR_SYNTAX_ERROR, EINVAL, "Syntax error"),
     ERROR(PARSE_ERR_ENCODING_ERROR, EILSEQ, "Encoding error")
+);
+
+enum MathErrorCodes {
+    MATH_ERR_DIV_BY_ZERO = 0,
+    MATH_ERR_OVERFLOW,
+    MATH_ERR_UNDERFLOW,
+    MATH_ERR_INVALID_OPERATION
+};
+DEFINE_ERROR_DOMAIN(MATH, 5,
+    ERROR(MATH_ERR_DIV_BY_ZERO, EDOM, "Division by zero"),
+    ERROR(MATH_ERR_OVERFLOW, ERANGE, "Overflow occurred"),
+    ERROR(MATH_ERR_UNDERFLOW, ERANGE, "Underflow occurred"),
+    ERROR(MATH_ERR_INVALID_OPERATION, EINVAL, "Invalid operation")
 );
 
 #endif // RESULT_H

@@ -15,3 +15,6 @@ executable('optional_in_result_example', 'examples/optional_in_result.c',
 
 executable('chaining_example', 'examples/chaining.c',
   include_directories : inc)
+
+executable('map_example', 'examples/map.c',
+  include_directories : inc)
