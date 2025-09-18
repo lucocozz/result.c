@@ -275,32 +275,32 @@ static inline void print_error_chain(FILE *stream, const Error *error)
             free_func(unwrap_ok(result_var)); \
     } while(0)
 
-#define TRY_CAST(EnclosingTypename, ExprTypename, target_var, res_expr) \
-    do { \
+#define TRY_CAST(EnclosingTypename, ExprTypename, res_expr) \
+    ({ \
         Result(ExprTypename) res = (res_expr); \
         if (is_error(res)) \
             return Propagate(EnclosingTypename, unwrap_error(res)); \
-        target_var = unwrap_ok(res); \
-    } while(0)
+        unwrap_ok(res); \
+    })
 
-#define TRY(Typename, target_var, res_expr) \
-    TRY_CAST(Typename, Typename, target_var, res_expr)
+#define TRY(Typename, res_expr) \
+    TRY_CAST(Typename, Typename, res_expr)
 
-#define TRY_FAIL_CAST(EnclosingTypename, ExprTypename, target_var, res_expr, FailDomain, FailCode) \
-    do { \
+#define TRY_FAIL_CAST(EnclosingTypename, ExprTypename, res_expr, FailDomain, FailCode) \
+    ({ \
         Result(ExprTypename) res = (res_expr); \
         if (is_error(res)) { \
             const Error *cause = unwrap_error(res); \
             const Error *new_err = _result_error_new(cause, &(FailDomain), FailCode, __FILE__, __LINE__, __func__); \
             return ((EnclosingTypename##Result){ ._is_ok = false, .error = new_err }); \
         } \
-        target_var = unwrap_ok(res); \
-    } while(0)
+        unwrap_ok(res); \
+    })
 
-#define TRY_FAIL(Typename, target_var, res_expr, FailDomain, FailCode) \
-    TRY_FAIL_CAST(Typename, Typename, target_var, res_expr, FailDomain, FailCode)
+#define TRY_FAIL(Typename, res_expr, FailDomain, FailCode) \
+    TRY_FAIL_CAST(Typename, Typename, res_expr, FailDomain, FailCode)
 
-#define MAP_RESULT(InputResultTypename, OutputResultTypename, result_expr, func_ptr) \
+#define MAP_RESULT(OutputResultTypename, func_ptr, InputResultTypename, result_expr) \
     ({\
         Result(InputResultTypename) _res_map_input = (result_expr); \
         is_ok(_res_map_input) \

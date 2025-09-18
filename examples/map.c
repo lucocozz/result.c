@@ -20,7 +20,7 @@ int main(void)
     printf("Test Case 1: divide(10, 2) and map square\n");
     printf("-----------------------------------------\n");
     Result(Int) res_div_ok = divide(10, 2);
-    Result(Int) squared_result_ok = MAP_RESULT(Int, Int, res_div_ok, square);
+    Result(Int) squared_result_ok = MAP_RESULT(Int, square, Int, res_div_ok);
 
     if (is_ok(squared_result_ok)) {
         printf("Original division result: %d\n", unwrap_ok(res_div_ok));
@@ -33,7 +33,7 @@ int main(void)
     printf("\nTest Case 2: divide(10, 0) and map square\n");
     printf("------------------------------------------\n");
     Result(Int) res_div_err = divide(10, 0);
-    Result(Int) squared_result_err = MAP_RESULT(Int, Int, res_div_err, square);
+    Result(Int) squared_result_err = MAP_RESULT(Int, square, Int, res_div_err);
 
     if (is_ok(squared_result_err)) {
         printf("Original division result: %d\n", unwrap_ok(res_div_err));

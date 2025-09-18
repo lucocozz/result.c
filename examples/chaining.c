@@ -20,18 +20,15 @@ Result(String) read_file_content(const char *path)
 
 Result(String) load_config()
 {
-    const char *content;
     const char *config_path = "settings.json";
-
-    TRY_FAIL(String, content, read_file_content(config_path), CONFIG_DOMAIN, CONFIG_ERR_READ_FAILED);
+    const char *content = TRY_FAIL(String, read_file_content(config_path), CONFIG_DOMAIN, CONFIG_ERR_READ_FAILED);
 
     return Ok(String, content);
 }
 
 Result(Void) start_application()
 {
-    const char *config;
-    TRY_FAIL_CAST(Void, String, config, load_config(), APP_DOMAIN, APP_ERR_INIT_FAILED);
+    const char *config = TRY_FAIL_CAST(Void, String, load_config(), APP_DOMAIN, APP_ERR_INIT_FAILED);
 
     printf("Application started successfully with config: %s\n", config);
 
