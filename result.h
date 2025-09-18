@@ -7,6 +7,8 @@
 #include <stdnoreturn.h>
 #include <errno.h>
 #include <stdatomic.h>
+#include <stdarg.h>
+#include <string.h>
 
 // ============= Configuration =============
 
@@ -14,11 +16,23 @@
 #define RESULT_ERROR_POOL_SIZE 256
 #endif
 
-// Uncomment the following line to enable color in `print_error_chain`
+#ifndef RESULT_ERROR_MESSAGE_POOL_SIZE
+#define RESULT_ERROR_MESSAGE_POOL_SIZE 8192
+#endif
+
+#ifndef RESULT_MAX_ERROR_MESSAGE_LEN
+#define RESULT_MAX_ERROR_MESSAGE_LEN 128
+#endif
+
+#ifndef TRUNC_INDICATOR
+#define TRUNC_INDICATOR "..."
+#endif
+
+// Uncomment the following line to globally enable color in `print_error_chain`
 // #define RESULT_FEATURE_COLOR
 
 #ifdef RESULT_FEATURE_COLOR
-    #define _RESULT_COLOR_RED     "\x1b[38;2;233;62;67m"   // rgba(233, 62, 67, 1)
+    #define _RESULT_COLOR_RED     "\x1b[38;2;233;62;67m"   // rgb(233, 62, 67)
     #define _RESULT_COLOR_ORANGE  "\x1b[38;2;255;171;112m" // rgb(255, 171, 112)
     #define _RESULT_COLOR_YELLOW  "\x1b[38;2;255;210;66m"  // rgb(255, 210, 66)
     #define _RESULT_COLOR_GREEN   "\x1b[38;2;171;225;91m"  // rgb(171, 225, 91)
@@ -79,7 +93,13 @@ typedef struct {
 static Error result_error_pool[RESULT_ERROR_POOL_SIZE];
 static _Atomic size_t result_error_pool_index = 0;
 
-static inline const Error *_result_error_new(const Error *cause, const ErrorDomain *domain, int err_code, const char *file, int line, const char *func) {
+static char result_error_message_pool[RESULT_ERROR_MESSAGE_POOL_SIZE];
+static _Atomic size_t result_error_message_pool_index = 0;
+
+static inline const Error *_result_error_new(
+    const Error *cause, const ErrorDomain *domain, int err_code,
+    const char *file, int line, const char *func
+) {
     size_t index = atomic_fetch_add(&result_error_pool_index, 1);
     Error *new_err = &result_error_pool[index % RESULT_ERROR_POOL_SIZE];
 
@@ -96,8 +116,44 @@ static inline const Error *_result_error_new(const Error *cause, const ErrorDoma
     return new_err;
 }
 
-static inline const Error *_result_from_errno(int errno_val, const ErrorDomain *domain, int fallback_err_code, const char *file, int line, const char *func)
-{
+static inline const Error *_result_error_new_fmt(
+    const Error *cause, const ErrorDomain *domain, int err_code,
+    const char *file, int line, const char *func, const char *format, ...
+) {
+    size_t msg_index = atomic_fetch_add(&result_error_message_pool_index, RESULT_MAX_ERROR_MESSAGE_LEN);
+    char *msg_buffer = &result_error_message_pool[msg_index % RESULT_ERROR_MESSAGE_POOL_SIZE];
+
+    va_list args;
+    va_start(args, format);
+    int required_len = vsnprintf(msg_buffer, RESULT_MAX_ERROR_MESSAGE_LEN, format, args);
+    va_end(args);
+
+    if (required_len >= RESULT_MAX_ERROR_MESSAGE_LEN) {
+        const size_t trunc_indicator_len = sizeof(TRUNC_INDICATOR) - 1;
+        size_t start_pos = RESULT_MAX_ERROR_MESSAGE_LEN - trunc_indicator_len - 1;
+        memcpy(msg_buffer + start_pos, TRUNC_INDICATOR, trunc_indicator_len + 1);
+    }
+
+    size_t index = atomic_fetch_add(&result_error_pool_index, 1);
+    Error *new_err = &result_error_pool[index % RESULT_ERROR_POOL_SIZE];
+
+    new_err->domain_id = domain->domain_id;
+    new_err->domain_name = domain->domain_name;
+    new_err->raw_code = domain->errors[err_code].raw_code;
+    new_err->type_code = err_code;
+    new_err->message = msg_buffer;
+    new_err->cause = cause;
+    new_err->file = file;
+    new_err->line = line;
+    new_err->func = func;
+
+    return new_err;
+}
+
+static inline const Error *_result_from_errno(
+    int errno_val, const ErrorDomain *domain, int fallback_err_code,
+    const char *file, int line, const char *func
+) {
     for (size_t i = 0; i < domain->error_count; ++i)
         if (domain->errors[i].raw_code == errno_val)
             return _result_error_new(NULL, domain, domain->errors[i].type_code, file, line, func);
@@ -170,13 +226,28 @@ static inline void print_error_chain(FILE *stream, const Error *error)
 #define Ok(Typename, Value) ((Typename##Result){ ._is_ok = true, .value = (Value) })
 
 #define Fail(ResultType, DomainObject, ErrCode) \
-    ((ResultType##Result){ ._is_ok = false, .error = _result_error_new(NULL, &(DomainObject), ErrCode, __FILE__, __LINE__, __func__) })
+    ((ResultType##Result){ \
+        ._is_ok = false, \
+        .error = _result_error_new(NULL, &(DomainObject), ErrCode, __FILE__, __LINE__, __func__) \
+    })
 
 #define Fail_from_errno(ResultType, DomainObject, errno_val, FallbackErrCode) \
-    ((ResultType##Result){ ._is_ok = false, .error = _result_from_errno(errno_val, &(DomainObject), FallbackErrCode, __FILE__, __LINE__, __func__) })
+    ((ResultType##Result){ \
+        ._is_ok = false, \
+        .error = _result_from_errno(errno_val, &(DomainObject), FallbackErrCode, __FILE__, __LINE__, __func__) \
+    })
+
+#define Fail_fmt(ResultType, DomainObject, ErrCode, ...) \
+    ((ResultType##Result){ \
+        ._is_ok = false, \
+        .error = _result_error_new_fmt(NULL, &(DomainObject), ErrCode, __FILE__, __LINE__, __func__, __VA_ARGS__) \
+    })
 
 #define Propagate(Typename, ErrStructPtr) \
-    ((Typename##Result){ ._is_ok = false, .error = _result_error_new(ErrStructPtr, &STANDARD_DOMAIN, STD_ERR_PROPAGATED, __FILE__, __LINE__, __func__) })
+    ((Typename##Result){ \
+        ._is_ok = false, \
+        .error = _result_error_new(ErrStructPtr, &STANDARD_DOMAIN, STD_ERR_PROPAGATED, __FILE__, __LINE__, __func__) \
+    })
 
 #define Result(Typename) Typename##Result
 
