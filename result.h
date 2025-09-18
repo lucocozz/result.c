@@ -338,6 +338,14 @@ static inline void print_error_chain(FILE *stream, const Error *error)
             free_func(unwrap_some(optional_var)); \
     } while(0)
 
+#define MAP_OPTIONAL(OutputOptionalTypename, func_ptr, InputOptionalTypename, optional_expr) \
+    ({ \
+        Optional(InputOptionalTypename) _opt_map_input = (optional_expr); \
+        is_some(_opt_map_input) \
+            ? Some(OutputOptionalTypename, func_ptr(unwrap_some(_opt_map_input))) \
+            : None(OutputOptionalTypename); \
+    })
+
 #define TRY_SOME(Typename, target_var, opt_expr) \
     do { \
         Optional(Typename) opt = (opt_expr); \
